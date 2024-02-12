@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 )
@@ -92,6 +93,8 @@ func rerunCommand(command string) {
 		fmt.Println("Error:", err)
 	}
 
-	fmt.Println("Stderr:\n\n", stderr.String())
-	fmt.Println("Stdout:\n\n", stdout.String())
+	color.Red("Stderr:\n\n")
+	fmt.Println(stderr.String())
+	color.Green("Stdout:\n\n")
+	fmt.Println(stdout.String())
 }
