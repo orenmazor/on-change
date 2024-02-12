@@ -4,10 +4,11 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
-	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
@@ -36,9 +37,6 @@ func init() {
 func Monitor(cmd *cobra.Command, args []string) {
 	slog.Info("Hello! Watching 👀", "path", path, "command", command)
 
-	verifyPathExists(path)
-	verifyCommandExists(command)
-
 	// Create new watcher.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -47,13 +45,22 @@ func Monitor(cmd *cobra.Command, args []string) {
 	defer watcher.Close()
 
 	// Start listening for events.
+	// TODO this needs to be buffered so we're only running things once
+	// otherwise if VIM does a bunch of actions to the file, or we save 5 files, we're going
+	// to get an event for each activity, which sucks if the command to run is expensive
 	go func() {
 		for {
 			select {
 			case event, _ := <-watcher.Events:
+				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+					continue
+				}
 				slog.Info("event received!", "event", event)
-
 				rerunCommand(command)
+
+			case err := <-watcher.Errors:
+				slog.Error(err.Error())
+				return
 			}
 		}
 	}()
@@ -70,27 +77,21 @@ func Monitor(cmd *cobra.Command, args []string) {
 func rerunCommand(command string) {
 	slog.Info("Rerunning", "command", command)
 
-	output, err := exec.Command(command).Output()
+	command = "-c " + command
+	args := strings.Split(command, " ")
+
+	runnable := exec.Command("bash", args...)
+
+	var stdout, stderr bytes.Buffer
+	runnable.Stdout = &stdout
+	runnable.Stderr = &stderr
+
+	err := runnable.Run()
 
 	if err != nil {
-		panic(err)
+		fmt.Println("Error:", err)
 	}
 
-	fmt.Println(string(output))
-}
-
-func verifyPathExists(path string) {
-	_, err := os.Stat(path)
-
-	if err != nil {
-		panic(err)
-	}
-}
-
-func verifyCommandExists(command string) {
-	_, err := exec.LookPath(command)
-
-	if err != nil {
-		panic(err)
-	}
+	fmt.Println("Stderr:\n\n", stderr.String())
+	fmt.Println("Stdout:\n\n", stdout.String())
 }
