@@ -4,7 +4,7 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"log"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -52,9 +52,8 @@ func Monitor(cmd *cobra.Command, args []string) {
 			select {
 			case event, _ := <-watcher.Events:
 				slog.Info("event received!", "event", event)
-				if event.Has(fsnotify.Write) {
-					log.Println("modified file:", event.Name)
-				}
+
+				rerunCommand(command)
 			}
 		}
 	}()
@@ -66,6 +65,18 @@ func Monitor(cmd *cobra.Command, args []string) {
 	}
 
 	<-make(chan struct{})
+}
+
+func rerunCommand(command string) {
+	slog.Info("Rerunning", "command", command)
+
+	output, err := exec.Command(command).Output()
+
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(string(output))
 }
 
 func verifyPathExists(path string) {
